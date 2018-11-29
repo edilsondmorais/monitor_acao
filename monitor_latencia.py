@@ -1,0 +1,240 @@
+#coding= utf-8
+#Python3
+__autor__= "Edilson S.M"
+#monitor_latencia.py
+
+#https://pypi.org/project/pingparsing/
+
+#E necessario instalar o pacote abaixo
+#pip install pingparsing
+
+###############################################################################################################################
+# Este programa sera usado para solucinar problema gerado no cluster de banco de dados devido a latencia alta entre o Node    #
+#que esta em Manaus e os demais Nodes que estao em SP, este problema gera fila no sincronismo e conseguentemente o cluster    #
+#entra em pausa aguardando o node de Manaus alcanca-los.                                                                      #
+#                                                                                                                             #
+# O modulo obtem a media da latencia "latencia_avg_limite" no periodo informado "interv_ping x qt_interv_ping "               #
+# e caso esteja alta durante o tempo "tmp_permit_alta", sera consultado se o proxy_pass esta ativo e caso sim, sera acionado o#
+#  modulo "principal" que consulta o acesso web acionando o monulo "monitor_web", e caso o acesso web esteja fora, o mesmo    #
+#acionara o modulo "proxy_nginx" que desativa o proxy_pass no nginx e restarta o serviço                                      #
+#                                                                                                                             #
+# OBS: No Modulo proxy_nginx voce deve inserir o caminho dos arquivos do nginx                                                #
+#                                                                                                                             #
+###############################################################################################################################
+
+from proxy_nginx import regist_status_proxy
+from principal import verifica_aciona, ver_status_alert
+from registra import registra
+from ver_status import ver_status_proxy
+from mysql import ver_status_cluster, registra_status_mysql
+
+import pingparsing
+import time
+from config import ip_destino, interv_ping, qt_interv_ping, latencia_avg_limite, tmp_permit_alta, tmp_recuper
+
+
+#########################################################
+# Os valores destas variaveis nao devem ser alterados ###
+#########################################################
+quant_ping = 1 # calculo medio= 1 ping leva 1 segundo
+tmp_medido_interv = int(qt_interv_ping * interv_ping) # Intervalo entre as medias obtida
+tmp_total_alta = 0 # para saber o tempo total que esta com latencia alta
+tmp_total_normal = 0 # para saber o tempo total que esta com latencia normal
+tmp_normalizado = tmp_recuper + tmp_medido_interv #para estabelecer um tempo para normalizando e deixar de enviar log
+oxila = 0 #para controlar quando oxilar durante a fase de latencia alta, exemplo 2 minutos com media alta e depois 1 minuto normal
+
+
+def convert_seg(seg):
+    minutos = seg // 60
+    return minutos
+
+def exec_ping():
+    ping_parser = pingparsing.PingParsing()
+    transmitter = pingparsing.PingTransmitter()
+    transmitter.destination_host = ip_destino
+    transmitter.count = quant_ping
+    result = transmitter.ping()
+    #print(json.dumps(ping_parser.parse(result).as_dict(), indent=4)) # Para saida no formato JSON
+    dic_resultado = ping_parser.parse(result).as_dict() # direciona a saida para uma variavel do tipo dicionario
+    avg = dic_resultado['rtt_avg']
+    return avg
+
+def analisa_ping():
+    qt_loop = 1
+    list_latencia = []
+    while qt_loop <= qt_interv_ping:
+        latencia_avg = exec_ping() # chama a funcao e retorna a latencia avg
+        try:
+            list_latencia.append(int(latencia_avg))
+            # print(latencia_avg)
+            registra("latencia", latencia_avg)
+            time.sleep(interv_ping)
+            qt_loop += 1
+
+        except TypeError:
+            list_latencia.append(0)
+            # print(latencia_avg)
+            registra("latencia", latencia_avg)
+            time.sleep(interv_ping)
+            qt_loop += 1
+
+    tt_latencia = 0
+    ultimo_tmp_media = int(0)
+    for i in list_latencia:
+        latencia = int(i)
+        tt_latencia += latencia
+    try:
+        ultimo_tmp_media = int(tt_latencia // qt_interv_ping)
+        #print("Latencia media: {lm} em {seg} Segundos\n".format(lm=ultimo_tmp_media, seg=tmp_medido_interv))
+    except ZeroDivisionError:
+        ultimo_tmp_media = int(0)
+        return "fora"
+
+    if ultimo_tmp_media >= latencia_avg_limite:
+        return "alta"
+    if ultimo_tmp_media < latencia_avg_limite and ultimo_tmp_media > 0:
+        return "normal"
+
+try:
+    while True:
+        analisando = analisa_ping()
+        if analisando == "alta":
+            if oxila < qt_interv_ping:
+                oxila += 1
+            else:
+                pass
+
+        if analisando == "normal":
+            if oxila > 0:
+                oxila -= 1
+            else:
+                pass
+
+        if analisando == "alta":
+            tmp_total_alta += tmp_medido_interv
+            if tmp_total_alta > tmp_permit_alta and oxila == qt_interv_ping:
+                msg_situ = "latencia_alta"
+                registra("status_lat", msg_situ) #Registra status no arquivo que o modulo principal verifica
+                minutos_alta = convert_seg(tmp_total_alta)
+                msg = "Latencia Alta a {seg} Minutos\n".format(seg=minutos_alta)
+                registra("log_geral", msg)
+                ## a cada intervalo com media alta sera consultado se o proxy esta ON ou OFF
+                consultar_status = ver_status_proxy()
+                if consultar_status == "True":
+                    verifica_aciona()
+                elif consultar_status == "False":
+                    registra("log_geral", "Proxy ja esta desativado, nada foi feito\n")
+                else:
+                    regist_status_proxy()
+                    ver_status = ver_status_proxy()
+                    if ver_status == "False":
+                        verifica_aciona()
+                    elif ver_status == "True":
+                        pass
+                    else:
+                        registra("log_geral", "Status de Proxy nao identificado, nada foi feito\n")
+
+        if analisando == "normal":
+            #Iniciando Normalizado
+            if oxila == 0:
+                if tmp_total_normal == 0:
+                    msg_situ = "latencia_normal"
+                    registra("status_lat", msg_situ)  # Registra status no arquivo que o modulo principal verifica
+                    resp_mysql = registra_status_mysql() # consulta se o mysql esta sincronizado com o cluster
+                    if resp_mysql == "Status False":
+                        consultar_status = ver_status_proxy()
+                        if consultar_status == "False":
+                            verifica_aciona() ##
+                        elif consultar_status == "True":
+                            pass
+                        else:
+                            registra("log_geral", "Consultando Status de Proxy\n")
+                            regist_status_proxy()
+                            ver_status = ver_status_proxy()
+                            if ver_status == "False":
+                                verifica_aciona()
+                            elif ver_status == "True":
+                                registra("log_geral", "Proxy ja esta ativado, nada foi feito\n")
+                            else:
+                                registra("log_geral", "Status de Proxy nao identificado, nada foi feito\n")
+                    elif resp_mysql == "Status True":
+                        pass
+                    else:
+                        registra("log_geral", "Status do Mysql nao identificado, nada foi feito\n")
+
+            #Recuperacao
+            else:
+                tmp_total_normal += tmp_medido_interv
+                if tmp_total_normal >= tmp_recuper and tmp_total_normal < tmp_normalizado:
+                    tmp_total_alta = 0
+                    msg_situ = "latencia_normal"
+                    registra("status_alert", msg_situ) #Registra status no arquivo que o modulo principal verifica
+                    minutos_normal = convert_seg(tmp_total_normal)
+                    msg = "Latencia Normal a {seg} Minutos\n".format(seg=minutos_normal)
+                    registra("log_geral", msg)
+                    ## a cada intervalo com media normal na recuperacao sera consultado Mysql e Proxy
+                    resp_mysql = registra_status_mysql()  # consulta se o mysql esta sincronizado com o cluster
+                    if resp_mysql == "Status False":
+                        consultar_status = ver_status_proxy()
+                        if consultar_status == "False":
+                            verifica_aciona()
+
+                        elif consultar_status == "True":
+                            pass
+                        else:
+                            regist_status_proxy()
+                            ver_status = ver_status_proxy()
+                            if ver_status == "False":
+                                verifica_aciona()
+                            elif ver_status == "True":
+                                pass
+                            else:
+                                registra("log_geral", "Status de Proxy nao identificado, nada foi feito\n")
+
+                if tmp_total_normal >= tmp_recuper and tmp_total_normal >= tmp_normalizado:
+                    tmp_total_normal = 0 # Para resetar a variavel minutos_normal e retornar para normalizado
+
+        if analisando == "fora":
+            msg_situ = "host_fora"
+            registra("status_alert", msg_situ)
+
+except KeyboardInterrupt:
+    registra("log_geral", "A execucao foi interrompida")
+    print("Usuario interrompeu a execucao")
+
+
+
+
+
+
+
+## MODELOS
+'''
+ping_parser = pingparsing.PingParsing()
+transmitter = pingparsing.PingTransmitter()
+transmitter.destination_host = ip_destino
+transmitter.count = quant_ping
+result = transmitter.ping()
+# Para saida no formato JSON
+#print(json.dumps(ping_parser.parse(result).as_dict(), indent=4))
+# direciona a saida para uma variavel do tipo dicionario
+dic_resultado = ping_parser.parse(result).as_dict()
+avg = int(dic_resultado['rtt_avg'])
+print(avg)
+'''
+'''
+import socket
+import os
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  #Create a TCP/IP socket
+def test_ping(qt, ip):
+    server_ip = "-c " + qt + " " + ip
+    print(server_ip)
+    #return os.system('ping ' + server_ip)
+    resposta = 0
+    while True:
+       resposta = os.system('ping ' + server_ip)
+       print (resposta)
+
+test_ping("5","8.8.8.8")
+
+'''
