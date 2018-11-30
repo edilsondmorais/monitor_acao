@@ -22,7 +22,7 @@ __autor__= "Edilson S.M"
 #                                                                                                                             #
 ###############################################################################################################################
 
-from proxy_nginx import regist_status_proxy
+from proxy_nginx import regist_status_proxy, consulta_proxy
 from principal import verifica_aciona, ver_status_alert
 from registra import registra
 from ver_status import ver_status_proxy
@@ -95,6 +95,8 @@ def analisa_ping():
     if ultimo_tmp_media < latencia_avg_limite and ultimo_tmp_media > 0:
         return "normal"
 
+#Para atualizar o status do proxy na inicializacao da app
+consulta_proxy()
 try:
     while True:
         analisando = analisa_ping()

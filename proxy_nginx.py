@@ -53,6 +53,11 @@ arq_status = "{dir}/status/.status_proxy".format(dir=diretorio)
 init_arq = open(arq_status, "a")
 init_arq.close()
 
+def registra_status(msg):
+    ope_arq_status = open(arq_status, "w")
+    ope_arq_status.write(msg)
+    ope_arq_status.close()
+
 #Funcao para verificar se o arquivo ja esta renomeado
 def consulta_proxy():
     ssh = SSHNginx()
@@ -62,8 +67,12 @@ def consulta_proxy():
     result2 = ssh.exec_cmd(arq2)
     print(result2)
     if result1 == "b\'True\\n\'" and result2 == "b\'True\\n\'":
+        status = "Status False "
+        registra_status(status)
         return 1 # Desativado
     else:
+        status = "Status True "
+        registra_status(status)
         return 0 # Ativado
 
 #Funcao para consultar o status atual
@@ -74,11 +83,6 @@ def status():
         dic_arq_status = i.split(" ")
         print("Status atual :", dic_arq_status[1])
         return dic_arq_status[1]
-
-def registra_status(msg):
-    ope_arq_status = open(arq_status, "w")
-    ope_arq_status.write(msg)
-    ope_arq_status.close()
 
 def regist_status_proxy():
     #op_arq_status = open(arq_status, "r")
