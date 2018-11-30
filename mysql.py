@@ -34,7 +34,7 @@ def registra_status_mysql():
     if pos4 == "(exited)" or pos4 == "(running)" or pos5 == "(exited)" or pos5 == "(running)":
         registra("status_mysql", "Status True")
         return "Status True"
-    elif pos4 == "failed" or pos4 == "stop"or pos5 == "failed" or pos5 == "stop":
+    elif pos4 == "failed" or pos4 == "stop"or pos4 == "inactive" or pos5 == "failed" or pos5 == "stop":
         registra("status_mysql", "Status False")
         return "Status False"
     else:
@@ -83,6 +83,8 @@ def exec_mysql(acao):
         registra("init_mysql", status)
         print(registra_status_mysql())
 
+#Interessante para consultar direto chamado o modulo pelo pronpt caso queira
+'''
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mysql', action='store', required=True, dest='mysql', help='Digite --mysql e stop ou start ou status')
@@ -112,7 +114,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+'''
 '''
                                                                 
 def acao_mysql(acao):                                           

@@ -213,6 +213,9 @@ def ativar_proxy_nginx():
 def acao_proxy(acao):
     eval(acao)
 
+
+#Interessante caso queira executar direto pelo prompt
+'''
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--proxy', action='store', required=True, dest='proxy', help='Digite --proxy e ON ou OFF ou status')
@@ -226,7 +229,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+'''
 
 #acao_proxy("ativar_proxy_nginx()")
 #acao_proxy("ver_status()")

@@ -1,7 +1,19 @@
 #coding: utf-8
 __autor__= "Edilson S.M"
 #config.py
+###############################################################
+### OBS : E NECESSARIO INSTALAR OS PACOTES ABAIXO
+###############################################################
+#pip install requests
+#pip install paramiko
+#pip install pingparsing
+###############################################################
 
+# OBS:
+# Este modulo config.py e onde estao os parametros que devem ser ajustado
+# OBS:
+# Por questao de seguranca durante a homologacao, no modulo mysql.py os comandos de stop e start no mysql,
+# foram alterados para status, e quando for para producao deve ser alterado para o correto
 
 #####################################################################################################################
 #DADOS DE ACESSO AO BANCO MYSQL PARA USO DO MODULO CONNECT
