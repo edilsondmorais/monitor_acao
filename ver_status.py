@@ -46,7 +46,8 @@ def status_mysql():
     op_arq_status_mysql = open(arq_status_mysql, "r")
     stat = op_arq_status_mysql.readlines()
     op_arq_status_mysql.close()
-    print(stat)
+    stat = str(stat[0])
+    return stat
 
 
 #print(status_mysql())
