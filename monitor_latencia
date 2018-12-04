@@ -71,7 +71,7 @@ def analisa_ping():
             time.sleep(interv_ping)
             qt_loop += 1
 
-        except TypeError:
+        except TypeError: # Quando ocorre perda de pacotes ou timeout retorna "None"
             list_latencia.append(0)
             # print(latencia_avg)
             registra("latencia", latencia_avg)
@@ -85,8 +85,7 @@ def analisa_ping():
         tt_latencia += latencia
     try:
         ultimo_tmp_media = int(tt_latencia // qt_interv_ping)
-        #print("Latencia media: {lm} em {seg} Segundos\n".format(lm=ultimo_tmp_media, seg=tmp_medido_interv))
-    except ZeroDivisionError:
+    except ZeroDivisionError: # Caso a media do intervalo medido for 0 o host esta fora.
         ultimo_tmp_media = int(0)
         return "fora"
 
@@ -94,7 +93,8 @@ def analisa_ping():
         return "alta"
     if ultimo_tmp_media < latencia_avg_limite and ultimo_tmp_media > 0:
         return "normal"
-
+# consulta se o mysql esta sincronizado com o cluster
+registra_status_mysql()
 #Para atualizar o status do proxy na inicializacao da app
 consulta_proxy()
 try:
@@ -142,11 +142,11 @@ try:
                 if tmp_total_normal == 0:
                     msg_situ = "latencia_normal"
                     registra("status_lat", msg_situ)  # Registra status no arquivo que o modulo principal verifica
-                    resp_mysql = registra_status_mysql() # consulta se o mysql esta sincronizado com o cluster
+                    resp_status_mysql = status_mysql() # consulta arquivo de status do mysql
                     if resp_mysql == "Status False":
                         consultar_status = ver_status_proxy()
                         if consultar_status == "False":
-                            verifica_aciona() ##
+                            verifica_aciona()
                         elif consultar_status == "True":
                             pass
                         else:
@@ -203,9 +203,6 @@ try:
 except KeyboardInterrupt:
     registra("log_geral", "A execucao foi interrompida")
     print("Usuario interrompeu a execucao")
-
-
-
 
 
 
