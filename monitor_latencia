@@ -170,7 +170,7 @@ try:
                 if tmp_total_normal >= tmp_recuper and tmp_total_normal < tmp_normalizado:
                     tmp_total_alta = 0
                     msg_situ = "latencia_normal"
-                    registra("status_alert", msg_situ) #Registra status no arquivo que o modulo principal verifica
+                    registra("status_lat", msg_situ) #Registra status no arquivo que o modulo principal verifica
                     minutos_normal = convert_seg(tmp_total_normal)
                     msg = "Latencia Normal a {seg} Minutos\n".format(seg=minutos_normal)
                     registra("log_geral", msg)
@@ -198,7 +198,7 @@ try:
 
         if analisando == "fora":
             msg_situ = "host_fora"
-            registra("status_alert", msg_situ)
+            registra("status_lat", msg_situ)
 
 except KeyboardInterrupt:
     registra("log_geral", "A execucao foi interrompida")
